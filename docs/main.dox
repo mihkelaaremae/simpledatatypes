@@ -1,0 +1,16 @@
+/**
+@mainpage Simple dynamic datatypes
+
+@ref sdstr_page "SDSTR - Simple Dynamic String"
+
+@ref sdvec_page "SDVEC - Simple Dynamic Vector"
+
+@ref sdmap_page "SDMAP - Simple Dynamic Map"
+
+@ref sdhmap_page "SDHMAP - Simple Dynamic Hash Map"
+
+@ref sdset_page "SDSET - Simple Dynamic Set"
+
+@ref sdhset_page "SDHMAP - Simple Dynamic Hash Set"
+
+*/

@@ -1,0 +1,204 @@
+/**
+@page sdmap_page SDMAP
+
+@ref sdmap.h "See the file reference"
+
+@section sdmap_usage Usage
+@subsection sdmap_intro Introdunction
+SDMAP is an associative map type that maps a single unique key to a single value.
+There are two types of sdmaps - heap and stack type.
+These refer to where they are stored in memory.
+Heap-type maps are put on the heap using the @ref sdmap_malloc, @ref sdmap_realloc @ref sdmap_free functions.
+Stack type maps are automatically put on the stack but only have the lifetime of the scope they are declared in.
+Stack-types may be variable-sized, the rules/conventions are all the same as with VLA-s.
+@code 
+sdmap(int, float) a; //Declare a to be a heap-type map that maps ints to floats
+sdmap_stack(char *, int, 20) b; //Declare b to be a stack-type map that maps strings to ints and has a maximum capacity of 20 entries.
+@endcode
+
+@subsection sdmap_create Creation/Deletion
+Heap-type maps are considered valid empty maps when assigned a NULL pointer.
+This cannot be done to stack-type maps as they are internally kept as VLA-s.
+@code
+sdmap(int, int) a;  //Declare map a
+a = NULL;           //Assign a to be an empty map.
+
+sdmap_stack(int, int, 10) b; //Declare map b
+b = NULL;                    //COMPILER ERROR
+@endcode
+Alternatively maps can be initialized with the @ref sdmap_new function. This function has optional parameters to define the desired initial capacity and compare funciton.
+@code
+sdmap(int, int) a;  //Declare map a
+sdmap(int, int) b;  //Declare map b
+sdmap(int, int) c;  //Declare map c
+sdmap_new(a);                           //Initialize map with default settings.
+sdmap_new(b, custom_int_compare);       //Initialize map with a custom integer compare function compare function.
+sdmap_new(c, custom_int_compare, 7);    //Initialize map with a custom integer compare function and enough capacity for 7 elements.
+@endcode
+This is the only way to initialize stack-type maps as they cannot be assigned NULL.
+The stack-type maps also omit the last parameter of @ref sdmap_new.
+@code
+sdmap_stack(int, int, 3) a;  //Declare map a
+sdmap_stack(int, int, 4) b;  //Declare map b
+sdmap_stack(int, int, 5) c;  //Declare map c
+sdmap_new(a);       //Initialize map with default settings.
+sdmap_new(b, custom_int_compare);    //Initialize map with a custom compare function.
+sdmap_new(c, custom_int_compare, 7);    //COMPILER ERROR
+@endcode
+\n
+Heap-type maps should be cleaned up with @ref sdmap_delete, NOT TO BE CONFUSED WITH @ref sdmap_free.
+Stack-type maps can also be called with this function but it is a no-op.
+@code
+sdmap(int, int) a;
+sdmap_stack(int, int, 100) b;
+sdmap_new(a);
+sdmap_new(b);
+//Do some stuff with the maps
+sdmap_delete(a);
+sdmap_delete(b);    //Not necessary, but decent compilers with access to the underlying function will optimize this away.
+@endcode
+Lastly, maps can be duplicated using @ref sdmap_duplicate. \n
+Duplication counts as initialization so the destination of duplication should be an uninitialized variable.\n
+This function will not care about the source/destination being heap/stack-typed, but it will trip an assert is the user attempts to duplicate into a stack-type map that has too little capacity to match the source.
+@code
+sdmap_stack(int, int, 20) a;
+sdmap_stack(int, int, 40) b;
+sdmap_new(a);
+//Fill a with values
+sdmap_duplicate(b, a);  //Ok, b has higher capacity than a
+sdmap_duplicate(a, b);  //Ok, b has the same amount of slots taken as a
+sdmap_set(b, unique_key, 0);
+sdmap_duplicate(a, b);  //ERROR, b has a higher amount of slots taken than the capacity of a
+@endcode
+@subsection sdmap_querying Querying
+The size of a map can be queried with @ref sdmap_count. This means the amount of entires the map contains.\n
+The capacity of a map can be queried with @ref sdmap_capacity. Capacity is the amount of entires that can exist in the map before a resize is triggered for heap-type maps. Trying to exceed the capacity of a stack-type map will trip an assert.
+@code
+sdmap(int, int) a = NULL;
+sdmap_get(a, 0);
+sdmap_get(a, 1);
+sdmap_get(a, 2);
+sdmap_get(a, 3);
+sdmap_get(a, 4);
+printf("%d %d", (int)sdmap_count(a), (int)sdmap_capacity(a));
+@endcode
+Output of the code with default settings:
+@code
+5 16
+@endcode
+
+@subsection sdmap_test Testing values
+The user can test for the presence of values with @ref sdmap_contains.
+@code
+sdmap(char *, float) a;
+//Initialize...
+if (sdmap_contains(a, "property"))
+{
+    printf("%f\n", sdmap_get(a, "property"));
+}
+@endcode
+Alternatively this can be done even more efficiently with @ref sdmap_getp
+@code
+sdmap(char *, float) a;
+//Initialize...
+if (float *v = sdmap_getp(a, "property"))
+{
+    printf("%f\n", *v);
+}
+@endcode
+This code will only have to go through the tree once as opposed to twice in the previous snippet.
+@subsection sdmap_getset Getting/setting/erasing values
+The @ref sdmap_get function will insert an element if the key cannot be found in the map. It will also return an lvalue for the value of the key.
+@code
+sdmap(int, float) a = NULL;
+sdmap_get(a, 1) = 4.5f; //We can assign the result of sdmap_get
+float *result = &sdmap_get(a, 2); //And even take its pointer...
+*result = 5.0f; //...to assign to it later
+printf("%f %f\n", sdmap_get(a, 1) sdmap_get(a, 2));
+@endcode
+Output of the code:
+@code
+4.5 5.0
+@endcode
+The @ref sdmap_getp function is NOT EQUIVALENT to taking the address of @ref sdmap_get as the latter will mutate the map but the former won't.\n
+The @ref sdmap_get will not zero any new values it inserts which runs the risk or reading garbage data if the user is not certain that the key exists.\n\n
+Values can also be assigned with @ref sdmap_set.
+@code
+sdmap(int, float) a = NULL;
+sdmap_set(a, 4, 8.0f);
+@endcode
+This is equivalent to (and actually implemented as) `sdmap_get(map, key) = value;`\n\n
+Values can be erased with the @ref sdmap_erase function.
+Any key that's erased but not present in the map will result in a no-op.
+@code
+sdmap(int, int) a = NULL;
+sdmap_get(a, 0);
+sdmap_get(a, 1);
+sdmap_get(a, 2);
+sdmap_get(a, 3);
+sdmap_get(a, 4);
+sdmap_erase(a, 2);
+sdmap_erase(a, 5);
+printf("%d", (int)sdmap_count(a));
+@endcode
+Output of the code:
+@code
+4
+@endcode
+@subsection sdmap_getsetp Getting/Setting pointers
+The SDMAP library also provides a getter familiy of functions.\n
+These allow the user, for example, to get the median average of a map with @ref sdmap_root.
+Or allow the user to traverse a map with @ref sdmap_next :
+@code
+sdmap(int, int) a = NULL;
+//Initialize...
+const int *key = sdmap_min(a);
+while (key)
+{
+    printf("key: %d   value: %d\n", *key, sdmap_get(a, key));
+    key = sdmap_next(key);
+}
+@endcode
+or even do it backwards
+@code
+sdmap(int, int) a = NULL;
+//Initialize...
+const int *key = sdmap_max(a);
+while (key)
+{
+    printf("key: %d   value: %d\n", *key, sdmap_get(a, key));
+    key = sdmap_prev(key);
+}
+@endcode
+The @ref sdmap_get call within the loop will not increase the complexity because of @ref sdmap_amortized "amortized complexity".
+@subsection sdmap_advanced Advanced
+
+The capacity of a heap-type map can be altered at runtime using the @ref sdmap_reserve and @ref sdmap_shrink functions.
+These either increase or decrease the capacity of the map.
+@ref sdmap_reserve especially can be useful when halfway through the program, the user learns the upper bound of the number of entries in their map.\n\n
+Maps can be traversed even more efficiently than previous examples with the `sdmap_traverse_...` families of functions.
+
+@section sdmap_usermacros User macros
+
+For custom memory management all 3 of the memory functions should be overwritten:
+@ref sdmap_malloc, @ref sdmap_realloc, @ref sdmap_free. \n\n
+@ref SDMAP_DEFAULT_CAPACITY controls the default capcity of heap-type maps, where the capacity is not specified.\n\n
+@ref sdmap_erase will automatically shirnk the map when the capacity/count ratio of the map exceeds @ref SDMAP_SHRINK_DENOMINATOR and @ref SDMAP_ENABLE_AUTOSHRINK is not disabled.\n\n
+Asserts can be overwritten with @ref sdmap_assert. \n\n
+By default, indexes in the map will be 32 bit integers, this behavior can be changed by overwriting @ref sdmap_index_t. \n\n
+The library makes heavy use of `typeof`. If your compiler supports this but not under `__typeof__` then it can be overwritten with @ref sdmap_typeof.
+@section sdmap_pitfalls Pitfalls
+
+@subsection sdmap_stack_type_maps Stack-type maps
+Stack-type maps should in general be used sparingly. Allowing maps with high capcities runs the risk of a stack overflow (especially in a multithreaded situation).\n
+
+@subsection sdmap_pointer_invalid Pointer invalidation
+Any function that changes the state of a map runs the risk of invalidating any pointers the user may have gotten from other functions. This works similarly to C++'s iterator invalidation.\n
+The user can check the file reference to see whether a function's description mentions "Calling this function invalidates all pointers...".
+
+@subsection sdmap_amortized Amortizied complexity
+Functions may benefit from being passed pointers returned from other functions. Doing so will result in faster execution and failing to do so can make loops or lookups unnecessarily long.\n
+The user can check the file reference to see whether a function's description mentions any alternate average time complexity under certain conditions.
+@tableofcontents
+
+*/

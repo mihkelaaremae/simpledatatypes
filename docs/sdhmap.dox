@@ -1,0 +1,18 @@
+/**
+@page sdhmap_page SDHMAP
+
+@ref sdhmap.h "See the file reference"
+
+@section sdhmap_usage Usage
+@subsection sdhmap_intro Introdunction
+SDMAP is an associative map type that maps a single unique key to a single value.
+There are two types of sdmaps - heap and stack type.
+These refer to where they are stored in memory.
+Heap-type maps are put on the heap using the @ref sdhmap_malloc, @ref sdhmap_realloc @ref sdhmap_free functions.
+Stack type maps are automatically put on the stack but only have the lifetime of the scope they are declared in.
+Stack-types may be variable-sized, the rules/conventions are all the same as with VLA-s.
+@code 
+sdmap(int, float) a; //Declare a to be a heap-type map that maps ints to floats
+sdmap_stack(char *, int, 20) b; //Declare b to be a stack-type map that maps strings to ints and has a maximum capacity of 20 entries.
+@endcode
+*/
